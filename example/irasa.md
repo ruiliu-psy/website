@@ -5,9 +5,8 @@ tags: [example, irasa]
 
 # Irregular Resampling Auto-Spectral Analysis (IRASA)
 
-IRASA allows distinguishing rhythmic activity from concurrent power-spectral 1/f modulations. The technique virtually compresses and expands the time-domain data with a set of non-integer resampling factors prior to Fourier-based spectral decomposition. As a result, rhythmic components in the power-spectrum are redistributed while the arrhythmic 1/f distribution is left intact. Taking the median of the resulting auto-spectral distributions extracts the power-spectral 1/f component, and the subsequent removal of the 1/f component from the original power-spectrum offers a power-spectral estimate of rhythmic content in the recorded signal. Below we demonstrate the [IRASA](https://link.springer.com/article/10.1007/s10548-015-0448-0) technique on simulated data containing both rhythmic and arrhythmic content.
-
-Further below, we demonstrate the [extraction of spectral features](https://elifesciences.org/articles/48065) based on IRASA. This adaptive approach allows defining rhythm frequency bands on a participant-by-participant basis (e.g., alpha and beta frequency bands), avoiding having to rely on canonical frequency bands that may not accurately capture the neural phenomena of interest in each individual.
+IRASA allows distinguishing rhythmic activity from concurrent power-spectral 1/f modulations. The technique virtually compresses and expands the time-domain data with a set of non-integer resampling factors prior to Fourier-based spectral decomposition. As a result, rhythmic components in the power-spectrum are redistributed while the arrhythmic 1/f distribution is left intact. Taking the median of the resulting auto-spectral distributions extracts the power-spectral 1/f component, and the subsequent removal of the 1/f component from the original power-spectrum offers a power-spectral estimate of rhythmic content in the recorded signal.
+Below we demonstrate extraction of spectral features in a simulated dataset and real human ECoG data based on [the IRASA algorithm (Wen & Liu, 2016)](https://link.springer.com/article/10.1007/s10548-015-0448-0).
 
 ## Separating fractal and oscillatory components in the power-spectrum of simulated data
 
@@ -72,9 +71,12 @@ Further below, we demonstrate the [extraction of spectral features](https://elif
 
 {% include image src="/assets/img/example/irasa/example.png" %}
 
+
 ## Extracting spectral features from human ECoG data
 
-To run this example, download S5_raw_segmented.mat from the [OSF repository](https://osf.io/z4hfm/). Additionally, download S5_lh.pial used to localize rhythmic activity in the sensorimotor cortex in a next step.
+Now we will work on the example of a ECoG dataset [(Stolk et al. 2019)](https://elifesciences.org/articles/48065). This adaptive approach allows defining rhythm frequency bands on a participant-by-participant basis (e.g., alpha and beta frequency bands), avoiding having to rely on canonical frequency bands that may not accurately capture the neural phenomena of interest in each individual. To run this example, download S5_raw_segmented.mat from the [OSF repository](https://osf.io/z4hfm/). Additionally, download S5_lh.pial used to localize rhythmic activity in the sensorimotor cortex in a next step.
+
+- Read in and preprocess the data
 
     % load the raw raw data
     load('S5_raw_segmented.mat')
@@ -100,6 +102,9 @@ To run this example, download S5_raw_segmented.mat from the [OSF repository](htt
       'chan092','chan093','chan094','chan095', ...
       'chan113','chan115','chan117','chan118','chan119'};
     data_sel = ft_selectdata(cfg, data_filt);
+
+
+- Run IRASA with sliding window for the continuous recording
 
     % segment the data into one-second overlapping chunks
     cfg               = [];
@@ -139,7 +144,8 @@ To run this example, download S5_raw_segmented.mat from the [OSF repository](htt
 
 {% include image src="/assets/img/example/irasa/IRASA_S5.png" %}
 
-## Localizing spectral features in the sensorimotor cortex 
+
+- Localizing spectral features in the sensorimotor cortex 
 
     % read in the cortical surface
     cortex = ft_read_headshape('S5_lh.pial');
@@ -188,30 +194,21 @@ To run this example, download S5_raw_segmented.mat from the [OSF repository](htt
     
     ft_plot_sens(beta.elec, 'elecshape', 'disc', 'facecolor', [0 0 0])
 
+Alpha rhythmic activity is maximal at electrodes on the postcentral gyrus, and beta rhythmic activity is strongest at electrodes placed over the central sulcus.
+
 {% include image src="/assets/img/example/irasa/IRASA_S5_beta.png" %}
 
-Consistent with the findings of the [original study](https://elifesciences.org/articles/48065), alpha rhythmic activity is maximal at electrodes on the postcentral gyrus, and beta rhythmic activity is strongest at electrodes placed over the central sulcus.
 
 ## Updates to the IRASA implementation
 
 {% include markup/warning %}
-Update: Starting from version 20210114 the implementation of **[ft_specest_irasa](https://github.com/fieldtrip/fieldtrip/blob/master/specest/ft_specest_irasa.m)** has changed. In short, the current implementation incorporates sub-segmentation of the data and, hence, the sub-segmentation and recombination steps no longer have to be performed outside IRASA. More details regarding this update can be found in [PR 1546](https://github.com/fieldtrip/fieldtrip/pull/1602).
+Update: Starting from version 20210114 the implementation of **[ft_specest_irasa](https://github.com/fieldtrip/fieldtrip/blob/master/specest/ft_specest_irasa.m)** has been changed. If you have used the previous implementation of IRASA, you must adapt your analysis scripts accordingly.
 
-- The current implementation implements the correct computational order of geometric and arithmetic means, which were swapped in the previous implementation (see [issue 1546](https://github.com/fieldtrip/fieldtrip/pull/1602)). 
+- The current implementation corrects the computational order of geometric and arithmetic means, which were swapped in the previous implementation (see [issue 1546](https://github.com/fieldtrip/fieldtrip/pull/1602)).
 
 - The current implementation enables IRASA and FFT for estimating both the fractal (arrhythmic) and original power-spectra, respectively. You do not have to use cfg.method='mtmfft' any more for computing the original power-spectrum. We recommend to compute both of them with cfg.method='irasa' to ensure a consistent frequency resolution and tapering of the fractal and original power-spectra. For that you should call **[ft_freqanalysis](https://github.com/fieldtrip/fieldtrip/blob/master/ft_freqanalysis.m)** twice, once with cfg.output='fractal', and once with cfg.output='original'.
 
 - The current implementation partition the trials as 90% long as the original ones automatically. Users do not have to call **[ft_redefinetrial](https://github.com/fieldtrip/fieldtrip/blob/master/ft_redefinetrial.m)**. However, if you are analyzing a continuous trial or trials with unequal lengthes, it is recommended to segment the data following [the Welch's method](https://en.wikipedia.org/wiki/Welch%27s_method) before spectrum estimation, as illustrated in the example script above. The frequency resolution of the output will be `fs/2^floor(log2(L*fs*0.9))` where L is the length of the segments in seconds and fs refers to the sampling rate.
-{% include markup/end %}
 
-{% include markup/warning %}
 Note that the upper limit of cfg.foilim has to be specified 1.9 (the maximal resampling factor) times as large as your intent, due to the resampling procedure of IRASA. For instance, you are interested in 100 Hz, the upper limit shall be set as 1.9 * 100 = 190 Hz. The same logic holds when you apply IRASA onto a band-pass or low-pass filtered dataset. Keep in mind, the filters might done with your own analysis piplines and/or with the acquisition system itself. For example, MEG data aquired at the DCCN with standard acquisition settings at 1200 Hz will have been subjected to a 300 Hz low-pass filter.
 {% include markup/end %}
-
-
-{% include image src="/assets/img/example/irasa/order.png" %}
-
-{% include image src="/assets/img/example/irasa/fract.png" %}
-
-{% include image src="/assets/img/example/irasa/mixed.png" %}
-
